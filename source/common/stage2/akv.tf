@@ -12,14 +12,14 @@ locals {
   }
 }
 
-module "sbx_rg" {
+module "rg" {
   source              = "git@github.com:AutomationAdmin-Com/module.rg.git?ref=v0.0.1"
-  resource_group_name = "aa-${var.env_stage_abbr}-${var.region_abbr}-${var.sub_abbr}-${var.stage}-${var.color}-ga-rg"
+  resource_group_name = "aa-${var.env_stage_abbr}-${var.region_abbr}-${var.sub_abbr}-${var.stage}-ga-rg"
   location            = var.region
   tags                = local.tags
 }
 
 module "rand" {
   source              = "./modules/rand"
-  resource_group_name = module.sbx_rg.name
+  resource_group_name = module.rg.name
 }
