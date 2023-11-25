@@ -16,13 +16,13 @@ else
    exit 1
 fi
 
-HUB_NONPRD='nonprd'
-HUB_PRD='prd'
+NONPRD='nonprd'
+PRD='prd'
 HUB='hub'
 SPK='spoke'
 
 # First, find out if nonprod or prod - Set the Storage Account access key based on environment AND set the Hub Provider to the correct Hub environment
-if [[ "$STR" == *"$HUB_NONPRD"* ]]; then
+if [[ "$STR" == *"$NONPRD"* ]]; then
    echo "Setting Github Output hub_subscription_secret_name to: Hub nonprod"
    HUB_SECRET='nonprd-hub-id'
    echo "hub_subscription_secret_name=$HUB_SECRET" >>$GITHUB_OUTPUT
@@ -31,7 +31,7 @@ if [[ "$STR" == *"$HUB_NONPRD"* ]]; then
    SA_ACCESS_KEY_NAME='nonprd-storage-account-access-key'
    echo "storage_account_key_name=$SA_ACCESS_KEY_NAME" >>$GITHUB_OUTPUT
 
-elif [[ "$STR" == *"$HUB_PRD"* ]]; then
+elif [[ "$STR" == *"$PRD"* ]]; then
    echo "Setting Github Output hub_subscription_secret_name to: Hub prod"
    HUB_SECRET='prd-hub-id'
    echo "hub_subscription_secret_name=$HUB_SECRET" >>$GITHUB_OUTPUT
@@ -64,19 +64,19 @@ esac
 
 # Last, finally just combine them
 if [[ "$SUBSCRIPTION" == 'hub' && "$HUB_SECRET" == 'nonprd-hub-id' ]]; then
-   echo "Setting spoke secret to: hub nonprod"
+   echo "Setting spoke secret to: nonprd-hub"
    SPOKE_SECRET='nonprd-hub-id'
    echo "spoke_subscription_secret_name=$SPOKE_SECRET" >>$GITHUB_OUTPUT
 elif [[ "$SUBSCRIPTION" == 'hub' && "$HUB_SECRET" == 'prd-hub-id' ]]; then
-   echo "Setting spoke secret to: hub prod"
+   echo "Setting spoke secret to: prd-hub"
    SPOKE_SECRET='prd-hub-id'
    echo "spoke_subscription_secret_name=$SPOKE_SECRET" >>$GITHUB_OUTPUT
 elif [[ "$SUBSCRIPTION" == 'spoke' && "$HUB_SECRET" == 'nonprd-hub-id' ]]; then
-   echo "Setting spoke secret to: spoke nonprod"
+   echo "Setting spoke secret to: nonprd-spoke"
    SPOKE_SECRET='nonprd-spoke-id'
    echo "spoke_subscription_secret_name=$SPOKE_SECRET" >>$GITHUB_OUTPUT
 elif [[ "$SUBSCRIPTION" == 'spoke' && "$HUB_SECRET" == 'prd-hub-id' ]]; then
-   echo "Setting spoke secret to: spoke prod"
+   echo "Setting spoke secret to: prd-spoke"
    SPOKE_SECRET='prd-spoke-id'
    echo "spoke_subscription_secret_name=$SPOKE_SECRET" >>$GITHUB_OUTPUT
 else

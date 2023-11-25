@@ -1,0 +1,210 @@
+
+name: "main"
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches:
+  #     - "develop"
+  # pull_request:
+  #   types: [opened, edited, synchronize]
+  #   branches:
+  #     - "develop"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  directories:
+    name: "Directory-changes"
+    runs-on: ubuntu-latest
+    steps:
+      
+      - name: "Checkout Feature Branch"
+        uses: actions/checkout@v3
+      
+      - uses: ./.github/actions/tf-folders
+        id: directories
+        with:
+          ignore: |
+            .github/
+            docs/
+            source/
+
+      - run: echo ${{ steps.directories.outputs.modules }}
+    outputs:
+      dirs: ${{ steps.directories.outputs.modules }}
+
+  terraform:
+    
+    name: "Terraform"
+    
+    runs-on: ubuntu-latest
+    environment: production
+    
+    needs: directories
+    
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        directories: ${{ fromJson(needs.directories.outputs.dirs) }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    
+      - name: "Checkout Sprint Branch"
+        uses: actions/checkout@v3
+
+      - name: "Echo Context"
+        run: echo '${{ toJSON(github) }}'
+
+      - name: "Parse Workflow TF Folder From Matrix"
+        id: parse
+        run: |
+          cd $GITHUB_WORKSPACE
+          chmod +x ./.github/scripts/parse.sh
+          ./.github/scripts/parse.sh
+        env:
+          CURRENT_DIRECTORY: ${{ matrix.directories }}
+
+      - name: "Copy Files"
+        run: |
+          cd $GITHUB_WORKSPACE
+          echo "Copying files"
+          mkdir -p ./live
+          cp ./${{ matrix.directories }}/* ./live/
+          cp ./source/common/${{ steps.parse.outputs.stage }}/* ./live/
+          cp -R ./source/modules ./live/
+          echo "File structure in root directory: "
+          ls -l
+          echo "File structure in terraform working directory: "
+          ls -l ./live
+
+      - name: "Azure Login"
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.CLIENT_ID }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          subscription-id: ${{ secrets.SUB_ID }}
+
+      - name: "Whitelist Runner IP On Demand"
+        run: |
+          set -eu
+          sleep 0.$((3000 + RANDOM%45000))
+          az account set --subscription "prd-hub"
+          agentIP=$(curl -s https://api.ipify.org/)
+          az keyvault network-rule add \
+            --resource-group "aa-prd-scus-hub-1-unmanaged-rg" \
+            --name "aa-prd-scus-hub-akv-v1" \
+            --ip-address $agentIP
+          sleep 45
+
+      # https://dev.azure.com/DDINS/Common%20Infrastructure%20Services/_git/DD_Azure_Docs?path=/kb/github/actions/access-secrets-keyvault.md&_a=preview
+      - name: "Get Secrets"
+        id: azure-keyvault-secrets
+        run: |
+          az account set --subscription "prd-hub"
+          secrets_get=( "spn-tenant-id spn-client-id spn-client-secret ${{ steps.parse.outputs.storage_account_key_name }}" )
+          for secret_get in ${secrets_get[@]}
+          do
+            value=$(az keyvault secret show --name $secret_get --vault-name ${{ env.SECRETS_AKV }} --query value --output tsv)
+            echo "::add-mask::$value"
+            if [[ $secret_get == "nonprd-storage-account-access-key" ]]; then
+              echo "sa-access-key=$value" >> $GITHUB_OUTPUT
+            elif [[ $secret_get == "prd-storage-account-access-key" ]]; then
+              echo "sa-access-key=$value" >> $GITHUB_OUTPUT
+            else
+              echo "$secret_get=$value" >> $GITHUB_OUTPUT
+            fi
+          done
+
+      - name: "Get Secrets Spoke Subscription"
+        id: azure-keyvault-secrets-spoke
+        run: |
+          az account set --subscription "prd-hub"
+          value=$(az keyvault secret show --name ${{ steps.parse.outputs.spoke_subscription_secret_name }} --vault-name ${{ env.SECRETS_AKV }} --query value --output tsv)
+          echo "::add-mask::$value"
+          echo "spoke-subscription-id=$value" >> $GITHUB_OUTPUT
+
+      - name: "Get Secrets Hub Subscription"
+        id: azure-keyvault-secrets-hub
+        run: |
+          az account set --subscription "prd-hub"
+          value=$(az keyvault secret show --name ${{ steps.parse.outputs.hub_subscription_secret_name }} --vault-name ${{ env.SECRETS_AKV }} --query value --output tsv)
+          echo "::add-mask::$value"
+          echo "hub-subscription-id=$value" >> $GITHUB_OUTPUT
+      
+      - name: "Download Terraform"
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.2.0
+
+      - name: "Get Github App Token"
+        id: gh-app-auth
+        uses: ./.github/actions/app-token
+        with:
+          app_id: "632563"
+          private_key: ${{ secrets.REPO_BOT_PEM }}
+
+      - name: "Update Git With Oauth Token"
+        run: git config --global url."https://x-access-token:${{ steps.gh-app-auth.outputs.token }}@github.com".insteadOf ssh://git@github.com
+
+      - name: "Terraform Init"
+        id: init
+        run: |
+          cd $GITHUB_WORKSPACE/live
+          terraform init -backend-config="access_key=${{ steps.azure-keyvault-secrets.outputs.sa-access-key }}"
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+
+      - name: "Terraform Validate"
+        id: validate
+        run: |
+          cd $GITHUB_WORKSPACE/live
+          terraform validate -no-color
+
+      - name: "Terraform Plan"
+        id: plan
+        run: |
+          cd $GITHUB_WORKSPACE/live
+          terraform plan -out="tf.plan"
+        continue-on-error: false
+        env:
+          TF_VAR_tenant_id: ${{ steps.azure-keyvault-secrets.outputs.spn-tenant-id }}
+          TF_VAR_client_id: ${{ steps.azure-keyvault-secrets.outputs.spn-client-id }}
+          TF_VAR_subscription_id: ${{ steps.azure-keyvault-secrets-spoke.outputs.spoke-subscription-id }}
+          TF_VAR_hub_subscription_id: ${{ steps.azure-keyvault-secrets-hub.outputs.hub-subscription-id }}
+          TF_VAR_pipeline: ${{ github.repository }}
+          TF_VAR_requested_for: ${{ github.actor }}
+          TF_INPUT: 0
+
+      - name: "Terraform Apply"
+        if: github.ref_name == 'develop' && github.event_name == 'push'
+        run: |
+          cd $GITHUB_WORKSPACE/live
+          terraform apply -auto-approve -input=false
+        continue-on-error: false
+        env:
+          TF_VAR_tenant_id: ${{ steps.azure-keyvault-secrets.outputs.spn-tenant-id }}
+          TF_VAR_client_id: ${{ steps.azure-keyvault-secrets.outputs.spn-client-id }}
+          TF_VAR_subscription_id: ${{ steps.azure-keyvault-secrets-spoke.outputs.spoke-subscription-id }}
+          TF_VAR_hub_subscription_id: ${{ steps.azure-keyvault-secrets-hub.outputs.hub-subscription-id }}
+          TF_VAR_pipeline: ${{ github.repository }}
+          TF_VAR_requested_for: ${{ github.actor }}
+          TF_INPUT: 0
+
+      - name: "Remove Github Whitelist Runner IP On Demand"
+        run: |
+          set -eu
+          az account set --subscription "prd-hub"
+          sleep 0.$((3000 + RANDOM%45000))
+          agentIP=$(curl -s https://api.ipify.org/)
+          az keyvault network-rule remove \
+            --resource-group "aa-prd-scus-hub-1-unmanaged-rg" \
+            --name "aa-prd-scus-hub-akv-v1" \
+            --ip-address $agentIP
