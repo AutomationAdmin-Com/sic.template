@@ -23,7 +23,7 @@ SPK='spoke'
 
 # First, find out if nonprod or prod - Set the Storage Account access key based on environment AND set the Hub Provider to the correct Hub environment
 if [[ "$STR" == *"$NONPRD"* ]]; then
-   echo "Setting Github Output hub_subscription_secret_name to: Hub nonprod"
+   echo "Setting Github Output hub_subscription_secret_name to: nonprd-hub"
    HUB_SECRET='nonprd-hub-id'
    echo "hub_subscription_secret_name=$HUB_SECRET" >>$GITHUB_OUTPUT
 
@@ -32,7 +32,7 @@ if [[ "$STR" == *"$NONPRD"* ]]; then
    echo "storage_account_key_name=$SA_ACCESS_KEY_NAME" >>$GITHUB_OUTPUT
 
 elif [[ "$STR" == *"$PRD"* ]]; then
-   echo "Setting Github Output hub_subscription_secret_name to: Hub prod"
+   echo "Setting Github Output hub_subscription_secret_name to: prd-hub"
    HUB_SECRET='prd-hub-id'
    echo "hub_subscription_secret_name=$HUB_SECRET" >>$GITHUB_OUTPUT
 
