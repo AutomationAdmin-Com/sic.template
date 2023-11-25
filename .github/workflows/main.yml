@@ -2,18 +2,21 @@
 name: "main"
 
 on:
-  workflow_dispatch:
-  # push:
-  #   branches:
-  #     - "develop"
-  # pull_request:
-  #   types: [opened, edited, synchronize]
-  #   branches:
-  #     - "develop"
+  #workflow_dispatch:
+  push:
+    branches:
+      - "develop"
+  pull_request:
+    types: [opened, edited, synchronize]
+    branches:
+      - "develop"
 
 permissions:
   id-token: write
   contents: read
+
+env:
+  SECRETS_AKV: "aa-prd-scus-hub-akv-v1"
 
 jobs:
   directories:
@@ -100,7 +103,7 @@ jobs:
           agentIP=$(curl -s https://api.ipify.org/)
           az keyvault network-rule add \
             --resource-group "aa-prd-scus-hub-1-unmanaged-rg" \
-            --name "aa-prd-scus-hub-akv-v1" \
+            --name ${{ env.SECRETS_AKV }} \
             --ip-address $agentIP
           sleep 45
 
@@ -109,7 +112,7 @@ jobs:
         id: azure-keyvault-secrets
         run: |
           az account set --subscription "prd-hub"
-          secrets_get=( "spn-tenant-id spn-client-id spn-client-secret ${{ steps.parse.outputs.storage_account_key_name }}" )
+          secrets_get=( "spn-tenant-id spn-client-id ${{ steps.parse.outputs.storage_account_key_name }}" )
           for secret_get in ${secrets_get[@]}
           do
             value=$(az keyvault secret show --name $secret_get --vault-name ${{ env.SECRETS_AKV }} --query value --output tsv)
@@ -206,5 +209,5 @@ jobs:
           agentIP=$(curl -s https://api.ipify.org/)
           az keyvault network-rule remove \
             --resource-group "aa-prd-scus-hub-1-unmanaged-rg" \
-            --name "aa-prd-scus-hub-akv-v1" \
+            --name ${{ env.SECRETS_AKV }} \
             --ip-address $agentIP
