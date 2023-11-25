@@ -1,0 +1,20 @@
+
+# https://stackoverflow.com/questions/71120146/allowing-only-certain-branches-to-pr-merge-to-mainmaster-branch
+# https://dev.azure.com/DDINS/Common%20Infrastructure%20Services/_git/DD_Azure_Docs?path=/kb/github/actions/branch-protection-rules.md&_a=preview
+
+name: 'protect_main_branch'
+
+on:
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  check_branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch
+        if: github.base_ref == 'main' && github.head_ref != 'develop'
+        run: |
+          echo "ERROR: You can only merge to main from develop branch."
+          exit 1
