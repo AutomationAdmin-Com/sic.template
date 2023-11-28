@@ -12,13 +12,20 @@ locals {
   }
 }
 
+module "rg" {
+  source              = "git@github.com:AutomationAdmin-Com/module.rg.git?ref=v0.0.1"
+  resource_group_name = "aa-${var.env_stage_abbr}-${var.region_abbr}-${var.sub_abbr}-${var.stage}-rg"
+  location            = var.region
+  tags                = local.tags
+}
+
 module "rand" {
   source              = "./modules/rand"
   resource_group_name = module.rg.name
 }
 
-module "rg" {
-  source              = "git@github.com:AutomationAdmin-Com/module.rg.git?ref=v0.0.1"
+module "rg_2" {
+  source              = "git@github.com:AutomationAdmin-Com/module.rg.git?ref=feature"
   resource_group_name = "aa-${var.env_stage_abbr}-${var.region_abbr}-${var.sub_abbr}-${var.stage}-${module.rand.result}-rg"
   location            = var.region
   tags                = local.tags
@@ -26,24 +33,12 @@ module "rg" {
 
 module "rand_2" {
   source              = "./modules/rand"
-  resource_group_name = module.rg.name
-}
-
-module "rg_2" {
-  source              = "git@github.com:AutomationAdmin-Com/module.rg.git?ref=feature"
-  resource_group_name = "aa-${var.env_stage_abbr}-${var.region_abbr}-${var.sub_abbr}-${var.stage}-${module.rand_2.result}-rg"
-  location            = var.region
-  tags                = local.tags
-}
-
-module "rand_3" {
-  source              = "./modules/rand"
-  resource_group_name = module.rg.name
+  resource_group_name = module.rg_2.name
 }
 
 module "rg_3" {
   source              = "git@github.com:AutomationAdmin-Com/module.rg.git?ref=main"
-  resource_group_name = "aa-${var.env_stage_abbr}-${var.region_abbr}-${var.sub_abbr}-${var.stage}-${module.rand_3.result}-rg"
+  resource_group_name = "aa-${var.env_stage_abbr}-${var.region_abbr}-${var.sub_abbr}-${var.stage}-${module.rand_2.result}-rg"
   location            = var.region
   tags                = local.tags
 }
