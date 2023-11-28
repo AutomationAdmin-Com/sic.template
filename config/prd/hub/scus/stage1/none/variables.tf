@@ -10,11 +10,6 @@ variable "client_id" {
   type        = string
 }
 
-# variable "client_secret" {
-#   description = "(Required) The terraform App Registration (Service Principal) `Client secret` property used for terraform authentication."
-#   type        = string
-# }
-
 variable "subscription_id" {
   description = "(Required) The Azure `Subscription ID` property used for terraform authentication. This is used to setup the default and the domain-subscription provider block `azurerm` ."
   type        = string

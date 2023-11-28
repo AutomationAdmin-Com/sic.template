@@ -32,6 +32,7 @@ module "rg_3" {
   location            = var.region
   tags                = local.tags
 }
+
 module "rand" {
   source              = "./modules/rand"
   resource_group_name = module.rg.name
