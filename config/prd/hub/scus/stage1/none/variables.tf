@@ -20,7 +20,6 @@ variable "hub_subscription_id" {
   type        = string
 }
 
-
 ### Naming/Tagging Vars
 
 variable "requested_for" {
